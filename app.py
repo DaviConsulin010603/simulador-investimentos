@@ -71,11 +71,13 @@ def buscar_selic_brasilapi():
 def buscar_cdi_open_finance():
     try:
         url = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoCDIUltimoDia?$format=json"
-        response = requests.get(url, timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            valor = float(data['value'][0]['valor'])
-            return valor
+            if "value" in data and data["value"]:
+                valor = float(str(data['value'][0]['valor']).replace(",", "."))
+                return valor
     except Exception as e:
         st.warning(f"Erro ao buscar CDI (Open Finance): {e}")
     return None
