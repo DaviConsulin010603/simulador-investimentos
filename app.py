@@ -33,33 +33,49 @@ def buscar_selic_brasilapi():
         st.warning(f"Erro ao buscar SELIC na BrasilAPI: {e}")
     return None
 
+def calcular_meses_ate_alvo(capital_inicial, taxa_juros_mensal, valor_mensal, meses_movimentacao, tipo_movimento, alvo):
+    taxa = taxa_juros_mensal / 100
+    saldo = capital_inicial
+    mes = 0
+    while saldo < alvo and mes <= 10000:
+        saldo *= (1 + taxa)
+        if mes < meses_movimentacao:
+            if tipo_movimento == "aportes":
+                saldo += valor_mensal
+            elif tipo_movimento == "retiradas":
+                saldo -= valor_mensal
+        mes += 1
+        if saldo <= 0:
+            return None
+    return mes if saldo >= alvo else None
+
 def calcular_detalhado(capital_inicial, taxa_mensal, meses_total, valor_mensal, meses_movimentacao, tipo_movimento):
     taxa = taxa_mensal / 100
     saldo = capital_inicial
     dados = []
 
     for mes in range(meses_total + 1):
-        if mes == 0:
-            dividendos = 0
-            movimento = 0
-        else:
-            dividendos = saldo * taxa
-            saldo += dividendos
+        dividendos = saldo * taxa if mes > 0 else 0
+        saldo += dividendos
 
-            if tipo_movimento == "aportes" and mes <= meses_movimentacao:
-                movimento = valor_mensal
-                saldo += valor_mensal
-            elif tipo_movimento == "retiradas" and mes <= meses_movimentacao:
-                movimento = -valor_mensal
-                saldo -= valor_mensal
-            else:
-                movimento = 0
+        if tipo_movimento == "aportes" and mes > 0 and mes <= meses_movimentacao:
+            movimento = valor_mensal
+            saldo += valor_mensal
+            aporte_real = valor_mensal
+        elif tipo_movimento == "retiradas" and mes > 0 and mes <= meses_movimentacao:
+            movimento = -valor_mensal
+            saldo -= valor_mensal
+            aporte_real = 0
+        else:
+            movimento = 0
+            aporte_real = 0
 
         dados.append({
             "Mês": mes,
             "Dividendos (R$)": round(dividendos, 2),
             "Aporte/Retirada (R$)": round(movimento, 2),
-            "Valor Reinvestido (R$)": round(saldo, 2)
+            "Valor Aportado no Mês (R$)": round(aporte_real, 2),
+            "Valor Total Investido (R$)": round(saldo, 2)
         })
 
     return pd.DataFrame(dados)
@@ -73,6 +89,7 @@ def main():
     valor_mensal = st.number_input("💸 Valor mensal (R$)", value=1000.0)
     meses_mov = st.slider("📆 Meses com movimentação", min_value=0, max_value=600, value=12)
     mostrar_grafico = st.checkbox("📊 Mostrar gráfico de evolução", value=True)
+    calcular_meta = st.checkbox("🎯 Calcular tempo para atingir R$ 100 milhões")
 
     indexador = st.selectbox("📊 Escolha o indexador:", [
         "Taxa personalizada (%)",
@@ -103,12 +120,21 @@ def main():
 
     if st.button("Calcular"):
         df = calcular_detalhado(capital, taxa_final, meses, valor_mensal, meses_mov, tipo)
-        valor_final = df.iloc[-1]["Valor Reinvestido (R$)"]
+        valor_final = df.iloc[-1]["Valor Total Investido (R$)"]
         st.success(f"💰 Valor final ao fim de {meses} meses: R$ {valor_final:,.2f}")
+
+        if calcular_meta:
+            meses_meta = calcular_meses_ate_alvo(capital, taxa_final, valor_mensal, meses_mov, tipo, 100_000_000)
+            if meses_meta:
+                anos = meses_meta // 12
+                resto = meses_meta % 12
+                st.info(f"🎯 Alcançará R$ 100 milhões em {meses_meta} meses ({anos} anos e {resto} meses)")
+            else:
+                st.warning("⚠️ Não é possível alcançar R$ 100 milhões com esses parâmetros.")
 
         if mostrar_grafico:
             fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(df["Mês"], df["Valor Reinvestido (R$)"], marker='o')
+            ax.plot(df["Mês"], df["Valor Total Investido (R$)"], marker='o')
             ax.set_title("Evolução do Capital")
             ax.set_xlabel("Mês")
             ax.set_ylabel("Saldo (R$)")
