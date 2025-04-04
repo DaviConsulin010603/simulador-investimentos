@@ -1,7 +1,12 @@
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import requests
 
+# ============================
+# Funções de cálculo
+# ============================
 def calcular_valor_futuro_com_aporte(capital_inicial, taxa_juros_mensal, meses_total, valor_mensal, meses_aporte):
     taxa = taxa_juros_mensal / 100
     saldo = capital_inicial
@@ -53,11 +58,13 @@ def calcular_saldos_mensais(capital_inicial, taxa_juros_mensal, meses_total, val
         dividendos.append(rendimento)
     return saldos, dividendos
 
+# ============================
+# Função principal do app
+# ============================
 def main():
     st.title("📈 Simulador de Investimentos com Juros Compostos")
 
     capital = st.number_input("💵 Capital inicial (R$)", value=10000.0, min_value=0.0)
-    taxa = st.number_input("📊 Taxa de juros mensal (%)", value=1.0, min_value=0.0)
     meses = st.number_input("⏳ Total de meses", value=240, min_value=1)
     tipo = st.selectbox("💼 Tipo de movimentação", ["nenhum", "aportes", "retiradas"])
     valor_mensal = st.number_input("💸 Valor mensal (R$)", value=1000.0)
@@ -65,18 +72,67 @@ def main():
     mostrar_grafico = st.checkbox("📊 Mostrar gráfico de evolução", value=True)
     calcular_meta = st.checkbox("🎯 Calcular tempo para atingir R$ 100 milhões")
 
+    # ----------------------------
+    # Escolha do indexador
+    # ----------------------------
+    INDEXADORES = {
+        "Taxa personalizada (%)": None,
+        "SELIC": 1178,
+        "IPCA": 433,
+        "IGP-M": 189,
+        "Taxa DI": 4390
+    }
+
+    indexador = st.selectbox("📊 Escolha o indexador:", list(INDEXADORES.keys()))
+
+    taxa_manual = 1.0
+    if indexador == "Taxa personalizada (%)":
+        taxa_manual = st.number_input("📉 Informe a taxa personalizada (% ao mês)", value=1.0, min_value=0.0)
+
+    @st.cache_data
+    def buscar_ultima_taxa_bacen(codigo):
+        try:
+            url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs/{codigo}/dados/ultimos/1?formato=json"
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data:
+                    valor_str = data[0]['valor'].replace(",", ".")
+                    return float(valor_str)
+        except Exception as e:
+            st.warning(f"Erro ao consultar API do Bacen: {e}")
+        return None
+
+    if indexador == "Taxa personalizada (%)":
+        taxa_final = taxa_manual
+    else:
+        codigo_sgs = INDEXADORES[indexador]
+        taxa_anual = buscar_ultima_taxa_bacen(codigo_sgs)
+        if taxa_anual is None:
+            st.error(f"Não foi possível obter a taxa de {indexador}. Usando valor padrão de 1% ao mês.")
+            taxa_final = 1.0
+        elif indexador in ["SELIC", "Taxa DI"]:
+            taxa_final = ((1 + taxa_anual / 100) ** (1 / 12) - 1) * 100
+            st.info(f"Taxa {indexador} anual: {taxa_anual:.2f}% → Mensal: {taxa_final:.4f}%")
+        else:
+            taxa_final = taxa_anual
+            st.info(f"Taxa {indexador} mensal: {taxa_final:.4f}%")
+
+    # ----------------------------
+    # Cálculo e resultado
+    # ----------------------------
     if st.button("Calcular"):
         if tipo == "aportes":
-            resultado = calcular_valor_futuro_com_aporte(capital, taxa, meses, valor_mensal, meses_mov)
+            resultado = calcular_valor_futuro_com_aporte(capital, taxa_final, meses, valor_mensal, meses_mov)
         elif tipo == "retiradas":
-            resultado = calcular_valor_futuro_com_retirada(capital, taxa, meses, valor_mensal, meses_mov)
+            resultado = calcular_valor_futuro_com_retirada(capital, taxa_final, meses, valor_mensal, meses_mov)
         else:
-            resultado = capital * ((1 + taxa / 100) ** meses)
+            resultado = capital * ((1 + taxa_final / 100) ** meses)
 
         st.success(f"💰 Valor final ao fim de {meses} meses: R$ {resultado:,.2f}")
 
         if calcular_meta:
-            meses_meta = calcular_meses_ate_alvo(capital, taxa, valor_mensal, meses_mov, tipo, 100_000_000)
+            meses_meta = calcular_meses_ate_alvo(capital, taxa_final, valor_mensal, meses_mov, tipo, 100_000_000)
             if meses_meta:
                 anos = meses_meta // 12
                 resto = meses_meta % 12
@@ -86,10 +142,10 @@ def main():
 
         if mostrar_grafico:
             if tipo in ["aportes", "retiradas"]:
-                saldos, dividendos = calcular_saldos_mensais(capital, taxa, meses, valor_mensal, meses_mov, tipo)
+                saldos, dividendos = calcular_saldos_mensais(capital, taxa_final, meses, valor_mensal, meses_mov, tipo)
             else:
-                saldos = [capital * ((1 + taxa / 100) ** i) for i in range(meses + 1)]
-                dividendos = [saldos[i] * (taxa / 100) for i in range(len(saldos) - 1)] + [0]
+                saldos = [capital * ((1 + taxa_final / 100) ** i) for i in range(meses + 1)]
+                dividendos = [saldos[i] * (taxa_final / 100) for i in range(len(saldos) - 1)] + [0]
 
             fig, ax = plt.subplots(figsize=(10, 4))
             ax.plot(range(len(saldos)), saldos, marker='o')
