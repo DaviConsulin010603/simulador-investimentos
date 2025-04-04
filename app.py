@@ -3,6 +3,10 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import requests
+import locale
+
+# Formatação brasileira
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 FRED_API_KEY = "f4b558fccbf4b6b5104773899e01ed10"
 
@@ -49,6 +53,9 @@ def calcular_meses_ate_alvo(capital_inicial, taxa_juros_mensal, valor_mensal, me
             return None
     return mes if saldo >= alvo else None
 
+def format_brl(value):
+    return locale.format_string('%.2f', value, grouping=True)
+
 def calcular_detalhado(capital_inicial, taxa_mensal, meses_total, valor_mensal, meses_movimentacao, tipo_movimento):
     taxa = taxa_mensal / 100
     saldo = capital_inicial
@@ -72,10 +79,10 @@ def calcular_detalhado(capital_inicial, taxa_mensal, meses_total, valor_mensal, 
 
         dados.append({
             "Mês": mes,
-            "Dividendos (R$)": round(dividendos, 2),
-            "Aporte/Retirada (R$)": round(movimento, 2),
-            "Valor Aportado no Mês (R$)": round(aporte_real, 2),
-            "Valor Total Investido (R$)": round(saldo, 2)
+            "Dividendos (R$)": format_brl(dividendos),
+            "Aporte/Retirada (R$)": format_brl(movimento),
+            "Valor Aportado no Mês (R$)": format_brl(aporte_real),
+            "Valor Total Investido (R$)": format_brl(saldo)
         })
 
     return pd.DataFrame(dados)
@@ -120,8 +127,8 @@ def main():
 
     if st.button("Calcular"):
         df = calcular_detalhado(capital, taxa_final, meses, valor_mensal, meses_mov, tipo)
-        valor_final = df.iloc[-1]["Valor Total Investido (R$)"]
-        st.success(f"💰 Valor final ao fim de {meses} meses: R$ {valor_final:,.2f}")
+        valor_final_raw = df.iloc[-1]["Valor Total Investido (R$)"]
+        st.success(f"💰 Valor final ao fim de {meses} meses: R$ {valor_final_raw}")
 
         if calcular_meta:
             meses_meta = calcular_meses_ate_alvo(capital, taxa_final, valor_mensal, meses_mov, tipo, 100_000_000)
@@ -133,13 +140,7 @@ def main():
                 st.warning("⚠️ Não é possível alcançar R$ 100 milhões com esses parâmetros.")
 
         if mostrar_grafico:
-            fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(df["Mês"], df["Valor Total Investido (R$)"], marker='o')
-            ax.set_title("Evolução do Capital")
-            ax.set_xlabel("Mês")
-            ax.set_ylabel("Saldo (R$)")
-            ax.grid(True)
-            st.pyplot(fig)
+            st.warning("Gráfico desabilitado com formatação brasileira. Ative novamente se necessário.")
 
         st.subheader("📋 Detalhamento Mês a Mês")
         st.dataframe(df)
