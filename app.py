@@ -81,7 +81,7 @@ def main():
 
     indexador = st.selectbox("📊 Escolha o indexador:", [
         "Taxa personalizada (%)",
-        "SELIC (via BrasilAPI)",
+        "SELIC",
         "IPCA (valor manual)",
         "IGP-M (valor manual)",
         "Taxa DI (valor manual)"
