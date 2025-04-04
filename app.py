@@ -3,12 +3,11 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import requests
-import locale
-
-# Formatação brasileira
-locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 FRED_API_KEY = "f4b558fccbf4b6b5104773899e01ed10"
+
+def format_brl(value):
+    return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def buscar_ipca_fred(api_key):
     try:
@@ -52,9 +51,6 @@ def calcular_meses_ate_alvo(capital_inicial, taxa_juros_mensal, valor_mensal, me
         if saldo <= 0:
             return None
     return mes if saldo >= alvo else None
-
-def format_brl(value):
-    return locale.format_string('%.2f', value, grouping=True)
 
 def calcular_detalhado(capital_inicial, taxa_mensal, meses_total, valor_mensal, meses_movimentacao, tipo_movimento):
     taxa = taxa_mensal / 100
@@ -140,7 +136,7 @@ def main():
                 st.warning("⚠️ Não é possível alcançar R$ 100 milhões com esses parâmetros.")
 
         if mostrar_grafico:
-            st.warning("Gráfico desabilitado com formatação brasileira. Ative novamente se necessário.")
+            st.warning("Gráfico desabilitado com strings formatadas. Podemos ajustar para reativar.")
 
         st.subheader("📋 Detalhamento Mês a Mês")
         st.dataframe(df)
