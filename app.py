@@ -4,9 +4,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import requests
 
-# ============================
-# Funções de cálculo
-# ============================
 def calcular_valor_futuro_com_aporte(capital_inicial, taxa_juros_mensal, meses_total, valor_mensal, meses_aporte):
     taxa = taxa_juros_mensal / 100
     saldo = capital_inicial
@@ -58,9 +55,19 @@ def calcular_saldos_mensais(capital_inicial, taxa_juros_mensal, meses_total, val
         dividendos.append(rendimento)
     return saldos, dividendos
 
-# ============================
-# Função principal do app
-# ============================
+def buscar_selic_brasilapi():
+    try:
+        url = "https://brasilapi.com.br/api/taxas/v1"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            taxas = response.json()
+            for t in taxas:
+                if t['nome'].lower() == 'selic':
+                    return float(t['valor'])
+    except Exception as e:
+        st.warning(f"Erro ao buscar SELIC na BrasilAPI: {e}")
+    return None
+
 def main():
     st.title("📈 Simulador de Investimentos com Juros Compostos")
 
@@ -72,55 +79,31 @@ def main():
     mostrar_grafico = st.checkbox("📊 Mostrar gráfico de evolução", value=True)
     calcular_meta = st.checkbox("🎯 Calcular tempo para atingir R$ 100 milhões")
 
-    # ----------------------------
-    # Escolha do indexador
-    # ----------------------------
-    INDEXADORES = {
-        "Taxa personalizada (%)": None,
-        "SELIC": 1178,
-        "IPCA": 433,
-        "IGP-M": 189,
-        "Taxa DI": 4390
-    }
-
-    indexador = st.selectbox("📊 Escolha o indexador:", list(INDEXADORES.keys()))
+    indexador = st.selectbox("📊 Escolha o indexador:", [
+        "Taxa personalizada (%)",
+        "SELIC (via BrasilAPI)",
+        "IPCA (valor manual)",
+        "IGP-M (valor manual)",
+        "Taxa DI (valor manual)"
+    ])
 
     taxa_manual = 1.0
+    taxa_final = 1.0
+
     if indexador == "Taxa personalizada (%)":
         taxa_manual = st.number_input("📉 Informe a taxa personalizada (% ao mês)", value=1.0, min_value=0.0)
-
-    @st.cache_data
-    def buscar_ultima_taxa_bacen(codigo):
-        try:
-            url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs/{codigo}/dados/ultimos/1?formato=json"
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                if data:
-                    valor_str = data[0]['valor'].replace(",", ".")
-                    return float(valor_str)
-        except Exception as e:
-            st.warning(f"Erro ao consultar API do Bacen: {e}")
-        return None
-
-    if indexador == "Taxa personalizada (%)":
         taxa_final = taxa_manual
-    else:
-        codigo_sgs = INDEXADORES[indexador]
-        taxa_anual = buscar_ultima_taxa_bacen(codigo_sgs)
-        if taxa_anual is None:
-            st.error(f"Não foi possível obter a taxa de {indexador}. Usando valor padrão de 1% ao mês.")
-            taxa_final = 1.0
-        elif indexador in ["SELIC", "Taxa DI"]:
-            taxa_final = ((1 + taxa_anual / 100) ** (1 / 12) - 1) * 100
-            st.info(f"Taxa {indexador} anual: {taxa_anual:.2f}% → Mensal: {taxa_final:.4f}%")
+    elif indexador == "SELIC (via BrasilAPI)":
+        taxa_selic = buscar_selic_brasilapi()
+        if taxa_selic:
+            taxa_final = ((1 + taxa_selic / 100) ** (1 / 12) - 1) * 100
+            st.info(f"📌 SELIC anual: {taxa_selic:.2f}% → mensal composta: {taxa_final:.4f}%")
         else:
-            taxa_final = taxa_anual
-            st.info(f"Taxa {indexador} mensal: {taxa_final:.4f}%")
+            st.error("Erro ao obter SELIC. Usando taxa padrão de 1% ao mês.")
+            taxa_final = 1.0
+    else:
+        taxa_final = st.number_input(f"📉 Informe a taxa para {indexador} (% ao mês)", value=1.0, min_value=0.0)
 
-    # ----------------------------
-    # Cálculo e resultado
-    # ----------------------------
     if st.button("Calcular"):
         if tipo == "aportes":
             resultado = calcular_valor_futuro_com_aporte(capital, taxa_final, meses, valor_mensal, meses_mov)
