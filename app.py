@@ -68,6 +68,18 @@ def buscar_selic_brasilapi():
         st.warning(f"Erro ao buscar SELIC na BrasilAPI: {e}")
     return None
 
+def buscar_cdi_open_finance():
+    try:
+        url = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoCDIUltimoDia?$format=json"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            valor = float(data['value'][0]['valor'])
+            return valor
+    except Exception as e:
+        st.warning(f"Erro ao buscar CDI (Open Finance): {e}")
+    return None
+
 def main():
     st.title("📈 Simulador de Investimentos com Juros Compostos")
 
@@ -81,18 +93,16 @@ def main():
 
     indexador = st.selectbox("📊 Escolha o indexador:", [
         "Taxa personalizada (%)",
-        "SELIC",
-        "IPCA (valor manual)",
-        "IGP-M (valor manual)",
-        "Taxa DI (valor manual)"
+        "SELIC (via BrasilAPI)",
+        "CDI (via Open Finance API)",
+        "IPCA (manual)",
+        "IGP-M (manual)"
     ])
 
-    taxa_manual = 1.0
     taxa_final = 1.0
 
     if indexador == "Taxa personalizada (%)":
-        taxa_manual = st.number_input("📉 Informe a taxa personalizada (% ao mês)", value=1.0, min_value=0.0)
-        taxa_final = taxa_manual
+        taxa_final = st.number_input("📉 Informe a taxa personalizada (% ao mês)", value=1.0, min_value=0.0)
     elif indexador == "SELIC (via BrasilAPI)":
         taxa_selic = buscar_selic_brasilapi()
         if taxa_selic:
@@ -100,6 +110,14 @@ def main():
             st.info(f"📌 SELIC anual: {taxa_selic:.2f}% → mensal composta: {taxa_final:.4f}%")
         else:
             st.error("Erro ao obter SELIC. Usando taxa padrão de 1% ao mês.")
+            taxa_final = 1.0
+    elif indexador == "CDI (via Open Finance API)":
+        taxa_cdi = buscar_cdi_open_finance()
+        if taxa_cdi:
+            taxa_final = ((1 + taxa_cdi / 100) ** (1 / 12) - 1) * 100
+            st.info(f"📌 CDI anual: {taxa_cdi:.2f}% → mensal composta: {taxa_final:.4f}%")
+        else:
+            st.error("Erro ao obter CDI. Usando taxa padrão de 1% ao mês.")
             taxa_final = 1.0
     else:
         taxa_final = st.number_input(f"📉 Informe a taxa para {indexador} (% ao mês)", value=1.0, min_value=0.0)
