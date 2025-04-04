@@ -59,7 +59,7 @@ def calcular_saldos_mensais(capital_inicial, taxa_juros_mensal, meses_total, val
 
 def buscar_ipca_fred(api_key):
     try:
-        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=FPCPITOTLZGNBRA&api_key={api_key}&file_type=json&observation_start=2023-01-01"
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=FPCPITOTLZGBRA&api_key={api_key}&file_type=json&observation_start=2023-01-01"
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
