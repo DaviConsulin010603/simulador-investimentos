@@ -74,6 +74,11 @@ def calcular_detalhado(capital_inicial, taxa_mensal, meses_total, valor_mensal, 
             aporte_real = 0
 
         dados.append({
+            "mes": mes,
+            "dividendos": dividendos,
+            "movimento": movimento,
+            "aporte_real": aporte_real,
+            "saldo": saldo,
             "Mês": mes,
             "Dividendos (R$)": format_brl(dividendos),
             "Aporte/Retirada (R$)": format_brl(movimento),
@@ -81,7 +86,8 @@ def calcular_detalhado(capital_inicial, taxa_mensal, meses_total, valor_mensal, 
             "Valor Total Investido (R$)": format_brl(saldo)
         })
 
-    return pd.DataFrame(dados)
+    df = pd.DataFrame(dados)
+    return df
 
 def main():
     st.title("📈 Simulador de Investimentos com Juros Compostos")
@@ -136,10 +142,16 @@ def main():
                 st.warning("⚠️ Não é possível alcançar R$ 100 milhões com esses parâmetros.")
 
         if mostrar_grafico:
-            st.warning("Gráfico desabilitado com strings formatadas. Podemos ajustar para reativar.")
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(df["mes"], df["saldo"], marker='o')
+            ax.set_title("Evolução do Capital")
+            ax.set_xlabel("Mês")
+            ax.set_ylabel("Saldo (R$)")
+            ax.grid(True)
+            st.pyplot(fig)
 
         st.subheader("📋 Detalhamento Mês a Mês")
-        st.dataframe(df)
+        st.dataframe(df[["Mês", "Dividendos (R$)", "Aporte/Retirada (R$)", "Valor Aportado no Mês (R$)", "Valor Total Investido (R$)"]])
 
 if __name__ == "__main__":
     main()
