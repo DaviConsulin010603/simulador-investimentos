@@ -4,6 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import requests
 
+FRED_API_KEY = "f4b558fccbf4b6b5104773899e01ed10"
+
 def calcular_valor_futuro_com_aporte(capital_inicial, taxa_juros_mensal, meses_total, valor_mensal, meses_aporte):
     taxa = taxa_juros_mensal / 100
     saldo = capital_inicial
@@ -55,6 +57,20 @@ def calcular_saldos_mensais(capital_inicial, taxa_juros_mensal, meses_total, val
         dividendos.append(rendimento)
     return saldos, dividendos
 
+def buscar_ipca_fred(api_key):
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=FPCPITOTLZGNBRA&api_key={api_key}&file_type=json&observation_start=2023-01-01"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            valores = [float(obs['value']) for obs in data['observations'] if obs['value'] != "."]
+            if valores:
+                media_anual = sum(valores[-12:]) / 12
+                return media_anual
+    except Exception as e:
+        st.warning(f"Erro ao buscar IPCA no FRED: {e}")
+    return None
+
 def buscar_selic_brasilapi():
     try:
         url = "https://brasilapi.com.br/api/taxas/v1"
@@ -66,20 +82,6 @@ def buscar_selic_brasilapi():
                     return float(t['valor'])
     except Exception as e:
         st.warning(f"Erro ao buscar SELIC na BrasilAPI: {e}")
-    return None
-
-def buscar_cdi_open_finance():
-    try:
-        url = "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoCDIUltimoDia?$format=json"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if "value" in data and data["value"]:
-                valor = float(str(data['value'][0]['valor']).replace(",", "."))
-                return valor
-    except Exception as e:
-        st.warning(f"Erro ao buscar CDI (Open Finance): {e}")
     return None
 
 def main():
@@ -96,8 +98,8 @@ def main():
     indexador = st.selectbox("📊 Escolha o indexador:", [
         "Taxa personalizada (%)",
         "SELIC (via BrasilAPI)",
-        "CDI (via Open Finance API)",
-        "IPCA (manual)",
+        "IPCA (via FRED)",
+        "CDI (manual)",
         "IGP-M (manual)"
     ])
 
@@ -113,13 +115,13 @@ def main():
         else:
             st.error("Erro ao obter SELIC. Usando taxa padrão de 1% ao mês.")
             taxa_final = 1.0
-    elif indexador == "CDI (via Open Finance API)":
-        taxa_cdi = buscar_cdi_open_finance()
-        if taxa_cdi:
-            taxa_final = ((1 + taxa_cdi / 100) ** (1 / 12) - 1) * 100
-            st.info(f"📌 CDI anual: {taxa_cdi:.2f}% → mensal composta: {taxa_final:.4f}%")
+    elif indexador == "IPCA (via FRED)":
+        taxa_ipca = buscar_ipca_fred(FRED_API_KEY)
+        if taxa_ipca:
+            taxa_final = ((1 + taxa_ipca / 100) ** (1 / 12) - 1) * 100
+            st.info(f"📌 IPCA anual: {taxa_ipca:.2f}% → mensal composta: {taxa_final:.4f}%")
         else:
-            st.error("Erro ao obter CDI. Usando taxa padrão de 1% ao mês.")
+            st.error("Erro ao obter IPCA. Usando taxa padrão de 1% ao mês.")
             taxa_final = 1.0
     else:
         taxa_final = st.number_input(f"📉 Informe a taxa para {indexador} (% ao mês)", value=1.0, min_value=0.0)
